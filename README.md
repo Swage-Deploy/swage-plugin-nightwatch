@@ -16,7 +16,7 @@ Connects sites to [Laravel Nightwatch](https://nightwatch.laravel.com). Each sit
 
 ## Requirements
 
-- Swage `v1.0.0` or later
+- Swage `v1.0.1` or later
 - The `laravel/nightwatch` package in each application you connect
 
 ## Installation

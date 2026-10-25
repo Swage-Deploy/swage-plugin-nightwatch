@@ -216,13 +216,13 @@ test('an unreachable server is not remembered as missing the package', function 
     nightwatchSettings($site)->call('recheck')->assertSet('installed', true);
 });
 
-test('the panel is on the site\'s settings page and never sends the saved token to the browser', function () {
+test('the panel is on the site\'s plugins tab and never sends the saved token to the browser', function () {
     $site = Site::factory()->create();
     nightwatchSettingsWithPackage($site)->set('token', 'super-secret-token')->call('save');
     NightwatchSite::for($site)->daemon->update(['status' => ResourceStatus::Installed]);
 
     $this->actingAs($site->server->user)
-        ->get(route('servers.sites.settings', [$site->server, $site]))
+        ->get(route('servers.sites.plugins', [$site->server, $site]))
         ->assertOk()
         ->assertSee('Nightwatch')
         ->assertSee('Reporting')

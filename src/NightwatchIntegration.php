@@ -4,11 +4,12 @@ namespace Swage\Nightwatch;
 
 use App\Models\Server;
 use App\Models\Site;
+use App\Plugins\HasPluginTab;
 use App\Sites\HooksIntoDeployments;
 use App\Sites\SiteIntegration;
 use Illuminate\Support\Facades\Cache;
 
-class NightwatchIntegration implements HooksIntoDeployments, SiteIntegration
+class NightwatchIntegration implements HasPluginTab, HooksIntoDeployments, SiteIntegration
 {
     public function id(): string
     {
@@ -18,6 +19,16 @@ class NightwatchIntegration implements HooksIntoDeployments, SiteIntegration
     public function settingsComponent(): string
     {
         return 'nightwatch.site-settings';
+    }
+
+    public function tabLabel(): string
+    {
+        return __('Nightwatch');
+    }
+
+    public function tabIcon(): string
+    {
+        return 'moon';
     }
 
     /**
