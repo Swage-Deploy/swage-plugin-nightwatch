@@ -137,6 +137,28 @@ class SiteSettings extends Component
     }
 
     /**
+     * Let only the site's user reach an agent started before agents were restricted.
+     */
+    public function restrict(SetNightwatch $setNightwatch): void
+    {
+        $this->authorize('update', $this->site);
+
+        $nightwatch = NightwatchSite::for($this->site) ?? abort(404);
+
+        $this->error = null;
+
+        try {
+            $setNightwatch->restrict($nightwatch->setRelation('site', $this->site));
+        } catch (ScriptFailedException $exception) {
+            $this->error = trim($exception->task->output ?? '');
+
+            return;
+        }
+
+        Flux::toast(variant: 'success', text: __('Only this site can reach its Nightwatch agent now.'));
+    }
+
+    /**
      * Remove Nightwatch's settings from the .env and stop the agent.
      */
     public function remove(SetNightwatch $setNightwatch): void

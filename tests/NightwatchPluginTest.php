@@ -69,7 +69,7 @@ test('adding nightwatch writes its token and agent address into the environment 
         ->user->toBe('example')
         ->site_id->toBe($site->id);
 
-    expect($shell->lastScript())
+    expect(collect($shell->ran)->pluck('script')->first(fn (string $script): bool => str_contains($script, 'NIGHTWATCH_TOKEN')))
         ->toContain(base64_encode('NIGHTWATCH_TOKEN=nw-Secret_Token/123'))
         ->toContain(base64_encode('NIGHTWATCH_INGEST_URI=127.0.0.1:2407'))
         ->toContain(base64_encode('NIGHTWATCH_REQUEST_SAMPLE_RATE=0.25'))
@@ -157,7 +157,7 @@ test('removing nightwatch deletes its variables and stops the agent', function (
 
     expect(NightwatchSite::for($site))->toBeNull()
         ->and($daemon->fresh()->status)->toBe(ResourceStatus::Removing)
-        ->and(app(RemoteShell::class)->lastScript())
+        ->and(collect(app(RemoteShell::class)->ran)->pluck('script')->last(fn (string $script): bool => str_contains($script, 'swage_env_unset NIGHTWATCH')))
         ->toContain('swage_env_unset NIGHTWATCH_TOKEN')
         ->toContain('swage_env_unset NIGHTWATCH_INGEST_URI');
 
@@ -300,4 +300,58 @@ test('a site\'s own manager configures nightwatch, and its viewers cannot', func
     Livewire::actingAs($manager)->test('nightwatch.site-settings', ['site' => $site])
         ->call('check')->set('token', 'token')->call('save')->assertHasNoErrors();
     expect(NightwatchSite::for($site))->not->toBeNull();
+});
+
+test('a new agent only accepts connections from its own site\'s user and root', function () {
+    $site = Site::factory()->isolated('example')->create();
+
+    nightwatchSettingsWithPackage($site)->set('token', 'token')->call('save')->assertHasNoErrors();
+
+    $shell = app(RemoteShell::class);
+
+    expect(NightwatchSite::for($site)->restricted)->toBeTrue()
+        ->and($shell->lastScript())
+        ->toContain("echo 'example' > /etc/swage/nightwatch-agents/2407")
+        ->toContain('-m owner --uid-owner "$user" -j RETURN')
+        ->toContain('-j REJECT --reject-with tcp-reset')
+        ->toContain('systemctl enable --quiet swage-nightwatch-firewall')
+        ->toContain('/usr/local/sbin/swage-nightwatch-firewall');
+
+    nightwatchSettings($site)->set('token', 'other')->call('save');
+
+    expect(collect($shell->ran)->filter(fn (array $run): bool => str_contains($run['script'], 'nightwatch-agents/'))->count())->toBe(1);
+});
+
+test('removing nightwatch removes its agent\'s firewall rule', function () {
+    $site = Site::factory()->isolated('example')->create();
+    nightwatchSettingsWithPackage($site)->set('token', 'token')->call('save');
+
+    nightwatchSettings($site)->call('remove')->assertHasNoErrors();
+
+    app(RemoteShell::class)->assertRan('rm -f /etc/swage/nightwatch-agents/2407');
+});
+
+test('an agent started before agents were restricted can be restricted from the settings', function () {
+    $site = Site::factory()->isolated('example')->create();
+    $daemon = Daemon::factory()->for($site->server)->create(['site_id' => $site->id]);
+    NightwatchSite::create(['site_id' => $site->id, 'token' => 'token', 'port' => 2410, 'daemon_id' => $daemon->id]);
+
+    nightwatchSettingsWithPackage($site)
+        ->assertSee('Other sites can send events to this agent')
+        ->call('restrict')
+        ->assertHasNoErrors()
+        ->assertDontSee('Other sites can send events to this agent');
+
+    expect(NightwatchSite::for($site)->restricted)->toBeTrue();
+    app(RemoteShell::class)->assertRan("echo 'example' > /etc/swage/nightwatch-agents/2410");
+});
+
+test('the agent restriction script is valid bash', function () {
+    if (! Process::run('command -v bash')->successful()) {
+        $this->markTestSkipped('bash is not available to check script syntax.');
+    }
+
+    foreach (['example', null] as $user) {
+        expect(Process::input(view('nightwatch::scripts.restrict-agent', ['port' => 2407, 'user' => $user])->render())->run('bash -n')->successful())->toBeTrue();
+    }
 });

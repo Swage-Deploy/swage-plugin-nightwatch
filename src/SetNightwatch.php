@@ -2,6 +2,7 @@
 
 namespace Swage\Nightwatch;
 
+use App\Actions\Servers\RunServerTask;
 use App\Actions\Sites\UpdateSiteEnvironment;
 use App\Enums\ResourceStatus;
 use App\Exceptions\ScriptFailedException;
@@ -21,7 +22,7 @@ class SetNightwatch
      */
     public const string TOKEN_PATTERN = '/^\S+$/D';
 
-    public function __construct(protected UpdateSiteEnvironment $updateEnvironment) {}
+    public function __construct(protected UpdateSiteEnvironment $updateEnvironment, protected RunServerTask $runTask) {}
 
     /**
      * Point the site at Nightwatch and start its agent, or update the settings of a site that already reports.
@@ -63,7 +64,29 @@ class SetNightwatch
             InstallDaemon::dispatch($daemon);
         }
 
+        if (! $nightwatch->restricted) {
+            $this->restrict($nightwatch->setRelation('site', $site));
+        }
+
         return $nightwatch;
+    }
+
+    /**
+     * Let only the site's user, and root, connect to its agent. The agent listens on 127.0.0.1, where every other site
+     * on the server could otherwise send it made-up events under the site's token.
+     *
+     * @throws ScriptFailedException
+     */
+    public function restrict(NightwatchSite $nightwatch): void
+    {
+        $site = $nightwatch->site;
+
+        $this->runTask->run($site->server, "Restricting the Nightwatch agent of {$site->domain} to its site", view('nightwatch::scripts.restrict-agent', [
+            'port' => $nightwatch->port,
+            'user' => $site->systemUser(),
+        ])->render(), timeout: 60);
+
+        $nightwatch->update(['restricted' => true]);
     }
 
     /**
@@ -85,6 +108,13 @@ class SetNightwatch
             $daemon->update(['status' => ResourceStatus::Removing]);
 
             RemoveDaemon::dispatch($daemon);
+        }
+
+        if ($nightwatch?->restricted) {
+            $this->runTask->run($site->server, "Removing the firewall rule of the Nightwatch agent of {$site->domain}", view('nightwatch::scripts.restrict-agent', [
+                'port' => $nightwatch->port,
+                'user' => null,
+            ])->render(), timeout: 60);
         }
 
         $nightwatch?->delete();

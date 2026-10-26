@@ -40,6 +40,16 @@
                 </flux:callout>
             @endif
 
+            @if ($nightwatch && ! $nightwatch->restricted)
+                <flux:callout icon="exclamation-triangle" color="amber">
+                    <flux:callout.heading>{{ __('Other sites can send events to this agent') }}</flux:callout.heading>
+                    <flux:callout.text>{{ __('It was started before Swage restricted agents to their own site, so any site on this server can connect to it and send made-up events under this site\'s token.') }}</flux:callout.text>
+                    <x-slot name="actions">
+                        <flux:button size="sm" wire:click="restrict">{{ __('Restrict the agent') }}</flux:button>
+                    </x-slot>
+                </flux:callout>
+            @endif
+
             @if ($nightwatch && $nightwatch->daemon === null)
                 <flux:callout icon="exclamation-triangle" color="red">
                     <flux:callout.text>{{ __('The agent\'s daemon was removed, so nothing reaches Nightwatch. Save to start it again.') }}</flux:callout.text>

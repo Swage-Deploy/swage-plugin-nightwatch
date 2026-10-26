@@ -17,8 +17,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $port
  * @property float|null $request_sample_rate
  * @property int|null $daemon_id
+ * @property bool $restricted Whether only the site's user can reach its agent.
  */
-#[Fillable(['site_id', 'token', 'port', 'request_sample_rate', 'daemon_id'])]
+#[Fillable(['site_id', 'token', 'port', 'request_sample_rate', 'daemon_id', 'restricted'])]
 #[Hidden(['token'])]
 class NightwatchSite extends Model
 {
@@ -35,6 +36,7 @@ class NightwatchSite extends Model
             'token' => 'encrypted',
             'port' => 'integer',
             'request_sample_rate' => 'float',
+            'restricted' => 'boolean',
         ];
     }
 

@@ -45,6 +45,7 @@ The application sends what it records to an agent on the same server, which forw
 
 - Swage picks a local port for the site, starting at Nightwatch's default of `2407` and counting up for each site on the same server, and sets it as `NIGHTWATCH_INGEST_URI`.
 - The agent runs as a daemon, `php artisan nightwatch:agent` as the site's user, so it shows on the server's daemons alongside queue workers. It reads its token and port from the site's config.
+- Only the site's user, and root, can connect to the agent's port. The agent listens on `127.0.0.1`, where any site on the server could otherwise send it made-up events under the site's token, so Swage adds a firewall rule per agent with iptables' owner match. The rules live in the `SWAGE-NIGHTWATCH` chain, are rebuilt from `/etc/swage/nightwatch-agents` by `/usr/local/sbin/swage-nightwatch-firewall`, and are set up again on every boot by the `swage-nightwatch-firewall` service. Agents started by an earlier version of the plugin show a **Restrict the agent** button.
 - Deployments restart it with the other daemons, so it always runs the live release. Changing the settings rebuilds the config cache and restarts it too.
 
 If the agent's daemon is deleted, the panel says so; saving starts a new one. **Remove** deletes the variables from the `.env` and stops the agent.
