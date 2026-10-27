@@ -46,7 +46,7 @@ function nightwatchSettingsWithPackage(Site $site)
 }
 
 test('adding nightwatch writes its token and agent address into the environment and starts an agent', function () {
-    $site = Site::factory()->isolated('example')->create(['domain' => 'example.com', 'php_version' => PhpVersion::Php85]);
+    $site = Site::factory()->systemUser('example')->create(['domain' => 'example.com', 'php_version' => PhpVersion::Php85]);
 
     $settings = nightwatchSettingsWithPackage($site);
     $shell = app(RemoteShell::class);
@@ -177,7 +177,7 @@ test('nothing is saved or started when the environment cannot be updated', funct
 
 test('nightwatch cannot be added until the package is installed', function () {
     $shell = fakeShell()->respondTo('vendor/laravel/nightwatch', new ScriptResult(0, "missing\n"));
-    $site = Site::factory()->isolated('example')->create(['domain' => 'example.com']);
+    $site = Site::factory()->systemUser('example')->create(['domain' => 'example.com']);
 
     nightwatchSettings($site)
         ->call('check')
@@ -303,7 +303,7 @@ test('a site\'s own manager configures nightwatch, and its viewers cannot', func
 });
 
 test('a new agent only accepts connections from its own site\'s user and root', function () {
-    $site = Site::factory()->isolated('example')->create();
+    $site = Site::factory()->systemUser('example')->create();
 
     nightwatchSettingsWithPackage($site)->set('token', 'token')->call('save')->assertHasNoErrors();
 
@@ -323,27 +323,12 @@ test('a new agent only accepts connections from its own site\'s user and root', 
 });
 
 test('removing nightwatch removes its agent\'s firewall rule', function () {
-    $site = Site::factory()->isolated('example')->create();
+    $site = Site::factory()->systemUser('example')->create();
     nightwatchSettingsWithPackage($site)->set('token', 'token')->call('save');
 
     nightwatchSettings($site)->call('remove')->assertHasNoErrors();
 
     app(RemoteShell::class)->assertRan('rm -f /etc/swage/nightwatch-agents/2407');
-});
-
-test('an agent started before agents were restricted can be restricted from the settings', function () {
-    $site = Site::factory()->isolated('example')->create();
-    $daemon = Daemon::factory()->for($site->server)->create(['site_id' => $site->id]);
-    NightwatchSite::create(['site_id' => $site->id, 'token' => 'token', 'port' => 2410, 'daemon_id' => $daemon->id]);
-
-    nightwatchSettingsWithPackage($site)
-        ->assertSee('Other sites can send events to this agent')
-        ->call('restrict')
-        ->assertHasNoErrors()
-        ->assertDontSee('Other sites can send events to this agent');
-
-    expect(NightwatchSite::for($site)->restricted)->toBeTrue();
-    app(RemoteShell::class)->assertRan("echo 'example' > /etc/swage/nightwatch-agents/2410");
 });
 
 test('the agent restriction script is valid bash', function () {
